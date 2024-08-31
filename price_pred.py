@@ -109,8 +109,18 @@ if check_password():
     #    with col5:
     #        st.metric(label="Volume" ,value=f"{volume_actual:.2f}")
 
-    # Fonction pour afficher les KPI
-   
+   # Fonction pour générer la barre de progression personnalisée
+    def display_progress_bar(progress):
+        st.markdown(
+            f"""
+            <div style="width: 100%; background-color: #f3f3f3; border-radius: 5px; padding: 3px;">
+                <div style="width: {progress}%; background-color: #eab676 ; height: 20px; border-radius: 5px; text-align: center; color: white;">
+                    {progress}%
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     # Fonction pour afficher les KPI
     def display_kpis(data):
@@ -274,8 +284,15 @@ if check_password():
                 model.add(Dense(units=1))
 
                 model.compile(optimizer='adam', loss='mean_squared_error')
-                model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
-
+                #model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
+                progress_bar = st.progress(0)
+                    # Entraîner le modèle
+                for epoch in range(lstm_epochs):
+                    model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs, verbose=0)
+                     # Calculer et afficher la progression
+                    progress = int((epoch + 1) / lstm_epochs * 100)
+                    display_progress_bar(progress)
+                    progress_bar.progress(progress)
                 last_60_days = scaled_data[-60:]
                 lstm_input = last_60_days.reshape(1, last_60_days.shape[0], last_60_days.shape[1])
                 lstm_predicted_prices = []
