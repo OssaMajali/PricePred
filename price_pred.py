@@ -11,7 +11,7 @@ from tensorflow.keras.layers import Dense, LSTM
 import time
 import datetime
 from scipy.stats import binned_statistic
-
+from plyer import notification
 # Fonction pour vérifier les identifiants
 def check_password():
     def password_entered():
@@ -350,7 +350,11 @@ if check_password():
 
                 # Affichage du graphique avec Streamlit
                 st.plotly_chart(volume_fig, use_container_width=True)
-
+                notification.notify(
+                    title='Notification',
+                    message='L\'exécution de votre tâche est terminée.',
+                    app_name='Streamlit'
+                )
                 # Option de téléchargement des résultats
                 st.write("Télécharger les prédictions:")
                 csv = data.to_csv(index=True)
