@@ -11,7 +11,6 @@ from tensorflow.keras.layers import Dense, LSTM
 import time
 import datetime
 from scipy.stats import binned_statistic
-from scipy.stats import gaussian_kde
 
 # Configurer Streamlit
 
@@ -37,6 +36,12 @@ def check_password():
     return True
 
 if check_password(): 
+        # Initialize session state variables if not already set
+    if 'button_clicked' not in st.session_state:
+        st.session_state.button_clicked = False
+
+    def on_button_click():
+        st.session_state.button_clicked = True
     st.set_page_config(layout="wide")
     st.title("Application de Prédiction des Prix")
 
@@ -158,7 +163,7 @@ if check_password():
             st.markdown('<div class="kpi"><strong>Lignes</strong><br>{:.2f}</div>'.format(data_size), unsafe_allow_html=True)
 
     # Bouton pour lancer la prédiction
-    if st.sidebar.button("Predict"):
+    if st.sidebar.button("Predict",on_click=on_button_click):
         # Affichage d'une animation de chargement
         with st.spinner("Prédiction en cours..."):
             # Télécharger les données
