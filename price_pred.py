@@ -15,7 +15,6 @@ from scipy.stats import gaussian_kde
 
 # Configurer Streamlit
 
-@st.cache_data
 # Fonction pour vérifier les identifiants
 def check_password():
     def password_entered():
