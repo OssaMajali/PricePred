@@ -161,200 +161,200 @@ if check_password():
     if st.sidebar.button("Predict"):
         # Affichage d'une animation de chargement
         #with st.spinner("Prédiction en cours..."):
-    # Affichage d'une barre de progression
-            progress_bar = st.sidebar.progress(0)
-            status_text = st.sidebar.empty()      
-            # Télécharger les données
-            data = yf.download(symbol, start=start_date, end=end_date, interval=interval)
-            data.index = data.index.tz_localize(None)
-            # Vérification des données manquantes
-            if data.isnull().values.any():
-                st.error("Les données téléchargées contiennent des valeurs manquantes. Veuillez vérifier les paramètres ou choisir un autre symbole.")
-            else:
-                # Calcul des indicateurs techniques
-                def calculate_RSI(data, window=14):
-                    delta = data['Close'].diff()
-                    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-                    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-                    RS = gain / loss
-                    RSI = 100 - (100 / (1 + RS))
-                    return RSI
+       # Affichage d'une barre de progression
+        progress_bar = st.sidebar.progress(0)
+        status_text = st.sidebar.empty()      
+        # Télécharger les données
+        data = yf.download(symbol, start=start_date, end=end_date, interval=interval)
+        data.index = data.index.tz_localize(None)
+        # Vérification des données manquantes
+        if data.isnull().values.any():
+            st.error("Les données téléchargées contiennent des valeurs manquantes. Veuillez vérifier les paramètres ou choisir un autre symbole.")
+        else:
+            # Calcul des indicateurs techniques
+            def calculate_RSI(data, window=14):
+                delta = data['Close'].diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+                RS = gain / loss
+                RSI = 100 - (100 / (1 + RS))
+                return RSI
 
-                def calculate_z_score(data):
-                    mean = data['Close'].rolling(window=20).mean()
-                    std = data['Close'].rolling(window=20).std()
-                    z_score = (data['Close'] - mean) / std
-                    return z_score
+            def calculate_z_score(data):
+                mean = data['Close'].rolling(window=20).mean()
+                std = data['Close'].rolling(window=20).std()
+                z_score = (data['Close'] - mean) / std
+                return z_score
 
-                data['ZScore'] = calculate_z_score(data)
-                data['RSI'] = calculate_RSI(data)
-                data['MACD_Line'], data['Signal_Line'], data['MACD_Histogram'] = calculate_macd(data)
+            data['ZScore'] = calculate_z_score(data)
+            data['RSI'] = calculate_RSI(data)
+            data['MACD_Line'], data['Signal_Line'], data['MACD_Histogram'] = calculate_macd(data)
 
-                # Afficher les KPI
-                display_kpis(data)
+            # Afficher les KPI
+            display_kpis(data)
 
-                # Afficher les dernières données
-                st.write("Aperçu des dernières données:")
-                #st.write(data.tail(5))
-                st.dataframe(data.tail(5), use_container_width=True)
-                progress_bar.progress(10)
-                # Calculer les rendements
-                data['Return'] = data['Close'].pct_change()
-                data = data.dropna()
-                progress_bar.progress(20)
-                # Ajuster un modèle SARIMA aux rendements
-                sarima_model = SARIMAX(data['Return'], order=(1, 0, 1), seasonal_order=(1, 1, 1, 5))
-                sarima_fit = sarima_model.fit(disp=False)
-                progress_bar.progress(40)
-                # Prédire les rendements pour les 30 prochaines minutes
-                forecast_steps_30 = 30
-                forecast_30 = sarima_fit.get_forecast(steps=forecast_steps_30)
-                forecast_Index_30 = [data.index[-1] + pd.Timedelta(minutes=i) for i in range(1, forecast_steps_30 + 1)]
-                forecast_values_30 = forecast_30.predicted_mean
+            # Afficher les dernières données
+            st.write("Aperçu des dernières données:")
+            #st.write(data.tail(5))
+            st.dataframe(data.tail(5), use_container_width=True)
+            progress_bar.progress(10)
+            # Calculer les rendements
+            data['Return'] = data['Close'].pct_change()
+            data = data.dropna()
+            progress_bar.progress(20)
+            # Ajuster un modèle SARIMA aux rendements
+            sarima_model = SARIMAX(data['Return'], order=(1, 0, 1), seasonal_order=(1, 1, 1, 5))
+            sarima_fit = sarima_model.fit(disp=False)
+            progress_bar.progress(40)
+            # Prédire les rendements pour les 30 prochaines minutes
+            forecast_steps_30 = 30
+            forecast_30 = sarima_fit.get_forecast(steps=forecast_steps_30)
+            forecast_Index_30 = [data.index[-1] + pd.Timedelta(minutes=i) for i in range(1, forecast_steps_30 + 1)]
+            forecast_values_30 = forecast_30.predicted_mean
 
-                # Prédire les prix en utilisant les rendements prédits par SARIMA
-                predicted_prices_30 = []
-                last_price_30 = data['Close'].iloc[-1]
-                for return_30 in forecast_values_30:
-                    predicted_price_30 = last_price_30 * (1 + return_30)
-                    predicted_prices_30.append(predicted_price_30)
-                    last_price_30 = predicted_price_30
-                progress_bar.progress(60)
-                # Simuler les prix en utilisant la méthode de Monte Carlo
-                n_simulations = 10000
-                simulated_trajectories = []
-                mean_return = data['Return'].mean()
-                std_return = data['Return'].std()
-                for _ in range(n_simulations):
-                    simulated_returns = np.random.normal(mean_return, std_return, forecast_steps_30)
-                    simulated_prices = [data['Close'].iloc[-1]]
-                    for return_ in simulated_returns:
-                        simulated_price = simulated_prices[-1] * (1 + return_)
-                        simulated_prices.append(simulated_price)
-                    simulated_trajectories.append(simulated_prices)
+            # Prédire les prix en utilisant les rendements prédits par SARIMA
+            predicted_prices_30 = []
+            last_price_30 = data['Close'].iloc[-1]
+            for return_30 in forecast_values_30:
+                predicted_price_30 = last_price_30 * (1 + return_30)
+                predicted_prices_30.append(predicted_price_30)
+                last_price_30 = predicted_price_30
+            progress_bar.progress(60)
+            # Simuler les prix en utilisant la méthode de Monte Carlo
+            n_simulations = 10000
+            simulated_trajectories = []
+            mean_return = data['Return'].mean()
+            std_return = data['Return'].std()
+            for _ in range(n_simulations):
+                simulated_returns = np.random.normal(mean_return, std_return, forecast_steps_30)
+                simulated_prices = [data['Close'].iloc[-1]]
+                for return_ in simulated_returns:
+                    simulated_price = simulated_prices[-1] * (1 + return_)
+                    simulated_prices.append(simulated_price)
+                simulated_trajectories.append(simulated_prices)
 
-                # Ajuster la longueur des trajectoires simulées
-                simulated_trajectories = [trajectory[:forecast_steps_30] for trajectory in simulated_trajectories]
-                mse_values = [mean_squared_error(predicted_prices_30, trajectory) for trajectory in simulated_trajectories]
+            # Ajuster la longueur des trajectoires simulées
+            simulated_trajectories = [trajectory[:forecast_steps_30] for trajectory in simulated_trajectories]
+            mse_values = [mean_squared_error(predicted_prices_30, trajectory) for trajectory in simulated_trajectories]
 
-                # Trouver la trajectoire simulée avec l'erreur quadratique moyenne la plus faible
-                min_mse_index = np.argmin(mse_values)
-                closest_trajectory = simulated_trajectories[min_mse_index]
-                progress_bar.progress(80)
-                # Préparation des données pour LSTM
-                scaler = MinMaxScaler(feature_range=(0, 1))
-                scaled_data = scaler.fit_transform(data[['Close', 'RSI', 'ZScore', 'MACD_Line', 'Signal_Line']].dropna())
+            # Trouver la trajectoire simulée avec l'erreur quadratique moyenne la plus faible
+            min_mse_index = np.argmin(mse_values)
+            closest_trajectory = simulated_trajectories[min_mse_index]
+            progress_bar.progress(80)
+            # Préparation des données pour LSTM
+            scaler = MinMaxScaler(feature_range=(0, 1))
+            scaled_data = scaler.fit_transform(data[['Close', 'RSI', 'ZScore', 'MACD_Line', 'Signal_Line']].dropna())
 
-                # Créer les séquences avec features (Close, RSI, ZScore, MACD_Line, Signal_Line)
-                def create_sequences_with_features(data, seq_length):
-                    x = []
-                    y = []
-                    for i in range(seq_length, len(data)):
-                        x.append(data[i-seq_length:i, :])
-                        y.append(data[i, 0])
-                    x, y = np.array(x), np.array(y)
-                    # Assurez-vous que x a trois dimensions
-                    if x.ndim == 2:
-                        x = np.expand_dims(x, axis=1)
-                    return x, y
+            # Créer les séquences avec features (Close, RSI, ZScore, MACD_Line, Signal_Line)
+            def create_sequences_with_features(data, seq_length):
+                x = []
+                y = []
+                for i in range(seq_length, len(data)):
+                    x.append(data[i-seq_length:i, :])
+                    y.append(data[i, 0])
+                x, y = np.array(x), np.array(y)
+                # Assurez-vous que x a trois dimensions
+                if x.ndim == 2:
+                    x = np.expand_dims(x, axis=1)
+                return x, y
 
-                seq_length = 60
-                x_train, y_train = create_sequences_with_features(scaled_data, seq_length)
+            seq_length = 60
+            x_train, y_train = create_sequences_with_features(scaled_data, seq_length)
 
-                # Vérifiez les dimensions avant de faire le reshape
-                if len(x_train.shape) == 3:
-                    x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], x_train.shape[2]))
-                else:
-                    st.error("Problème avec les dimensions de x_train. Vérifiez les données d'entrée.")
-
+            # Vérifiez les dimensions avant de faire le reshape
+            if len(x_train.shape) == 3:
                 x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], x_train.shape[2]))
+            else:
+                st.error("Problème avec les dimensions de x_train. Vérifiez les données d'entrée.")
 
-                # Modèle LSTM
-                model = Sequential()
-                model.add(LSTM(units=lstm_units, return_sequences=True, input_shape=(x_train.shape[1], x_train.shape[2])))
-                model.add(LSTM(units=lstm_units, return_sequences=False))
-                model.add(Dense(units=25))
-                model.add(Dense(units=1))
+            x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], x_train.shape[2]))
 
-                model.compile(optimizer='adam', loss='mean_squared_error')
-                model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
-                progress_bar.progress(90)
-                last_60_days = scaled_data[-60:]
-                lstm_input = last_60_days.reshape(1, last_60_days.shape[0], last_60_days.shape[1])
-                lstm_predicted_prices = []
+            # Modèle LSTM
+            model = Sequential()
+            model.add(LSTM(units=lstm_units, return_sequences=True, input_shape=(x_train.shape[1], x_train.shape[2])))
+            model.add(LSTM(units=lstm_units, return_sequences=False))
+            model.add(Dense(units=25))
+            model.add(Dense(units=1))
 
-                for _ in range(forecast_steps_30):
-                    lstm_predicted_price = model.predict(lstm_input)
-                    lstm_predicted_prices.append(lstm_predicted_price[0][0])
-                    lstm_predicted_price_reshaped = np.full((1, 1, lstm_input.shape[2]), lstm_predicted_price[0][0])
-                    lstm_input = np.append(lstm_input[:, 1:, :], lstm_predicted_price_reshaped, axis=1)
+            model.compile(optimizer='adam', loss='mean_squared_error')
+            model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
+            progress_bar.progress(90)
+            last_60_days = scaled_data[-60:]
+            lstm_input = last_60_days.reshape(1, last_60_days.shape[0], last_60_days.shape[1])
+            lstm_predicted_prices = []
 
-                lstm_predicted_prices = np.array(lstm_predicted_prices).reshape(-1, 1)
-                lstm_predicted_prices_full = np.zeros((lstm_predicted_prices.shape[0], scaled_data.shape[1]))
-                lstm_predicted_prices_full[:, 0] = lstm_predicted_prices[:, 0]
+            for _ in range(forecast_steps_30):
+                lstm_predicted_price = model.predict(lstm_input)
+                lstm_predicted_prices.append(lstm_predicted_price[0][0])
+                lstm_predicted_price_reshaped = np.full((1, 1, lstm_input.shape[2]), lstm_predicted_price[0][0])
+                lstm_input = np.append(lstm_input[:, 1:, :], lstm_predicted_price_reshaped, axis=1)
 
-                lstm_predicted_prices = scaler.inverse_transform(lstm_predicted_prices_full)[:, 0]
-                progress_bar.progress(100)
-                status_text.text("Prédiction terminée")
-                # Calculer le Volume Profile
-                #price_bins, volume_profile = calculate_volume_profile(data)
+            lstm_predicted_prices = np.array(lstm_predicted_prices).reshape(-1, 1)
+            lstm_predicted_prices_full = np.zeros((lstm_predicted_prices.shape[0], scaled_data.shape[1]))
+            lstm_predicted_prices_full[:, 0] = lstm_predicted_prices[:, 0]
 
-
-                # Calculer le Volume Profile
-                volume_profile, bin_edges = calculate_volume_profile(data)
+            lstm_predicted_prices = scaler.inverse_transform(lstm_predicted_prices_full)[:, 0]
+            progress_bar.progress(100)
+            status_text.text("Prédiction terminée")
+            # Calculer le Volume Profile
+            #price_bins, volume_profile = calculate_volume_profile(data)
 
 
-                # Visualisation interactive avec Plotly
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Prices',line=dict(color='white') , showlegend=False))
-                fig.add_trace(go.Scatter(x=forecast_Index_30, y=predicted_prices_30, mode='lines',  name='SARIMA',line=dict(color='red'), showlegend=False ))
-                fig.add_trace(go.Scatter(x=forecast_Index_30, y=closest_trajectory, mode='lines', name='Monte Carlo',line=dict(color='green'),showlegend=False ))
-                fig.add_trace(go.Scatter(x=forecast_Index_30, y=lstm_predicted_prices, mode='lines', name='LSTM',line=dict(color='#eab676'), showlegend=False ))
-                fig.update_layout(title=f'Price Prediction for {symbol}', xaxis_title='Date', yaxis_title='Price')
-                st.plotly_chart(fig)
+            # Calculer le Volume Profile
+            volume_profile, bin_edges = calculate_volume_profile(data)
+
+
+            # Visualisation interactive avec Plotly
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Prices',line=dict(color='white') , showlegend=False))
+            fig.add_trace(go.Scatter(x=forecast_Index_30, y=predicted_prices_30, mode='lines',  name='SARIMA',line=dict(color='red'), showlegend=False ))
+            fig.add_trace(go.Scatter(x=forecast_Index_30, y=closest_trajectory, mode='lines', name='Monte Carlo',line=dict(color='green'),showlegend=False ))
+            fig.add_trace(go.Scatter(x=forecast_Index_30, y=lstm_predicted_prices, mode='lines', name='LSTM',line=dict(color='#eab676'), showlegend=False ))
+            fig.update_layout(title=f'Price Prediction for {symbol}', xaxis_title='Date', yaxis_title='Price')
+            st.plotly_chart(fig)
+        
+
+            # Visualisation du MACD
             
+            fig_macd = go.Figure()
+            fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD_Line'], mode='lines', name='MACD Line', line=dict(color='white'),showlegend=False))
+            fig_macd.add_trace(go.Scatter(x=data.index, y=data['Signal_Line'], mode='lines', name='Signal Line', line=dict(color='#eab676'), showlegend=False))
+            fig_macd.add_trace(go.Bar(x=data.index, y=data['MACD_Histogram'], name='MACD Histogram', marker_color='grey', opacity=0.7,showlegend=False))
+            fig_macd.update_layout(title=f'MACD for {symbol}', xaxis_title='Date', yaxis_title='MACD', xaxis=dict(tickformat="%d-%m-%Y"))
+            st.plotly_chart(fig_macd)
+        
 
-                # Visualisation du MACD
-                
-                fig_macd = go.Figure()
-                fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD_Line'], mode='lines', name='MACD Line', line=dict(color='white'),showlegend=False))
-                fig_macd.add_trace(go.Scatter(x=data.index, y=data['Signal_Line'], mode='lines', name='Signal Line', line=dict(color='#eab676'), showlegend=False))
-                fig_macd.add_trace(go.Bar(x=data.index, y=data['MACD_Histogram'], name='MACD Histogram', marker_color='grey', opacity=0.7,showlegend=False))
-                fig_macd.update_layout(title=f'MACD for {symbol}', xaxis_title='Date', yaxis_title='MACD', xaxis=dict(tickformat="%d-%m-%Y"))
-                st.plotly_chart(fig_macd)
+            # Visualisation du RSI
             
+            fig_rsi = go.Figure()
+            fig_rsi.add_trace(go.Scatter(x=data.index, y=data['RSI'], mode='lines', name='RSI', line=dict(color='white'),showlegend=False))
+            fig_rsi.add_trace(go.Scatter(x=data.index, y=[30]*len(data), mode='lines', name='Seuil 30', line=dict(color='#eab676', dash='dash'),showlegend=False))
+            fig_rsi.add_trace(go.Scatter(x=data.index, y=[70]*len(data), mode='lines', name='Seuil 70', line=dict(color='#eab676', dash='dash'),showlegend=False))
+            fig_rsi.update_layout(title=f'RSI for {symbol}', xaxis_title='Date', yaxis_title='RSI', xaxis=dict(tickformat="%d-%m-%Y"))
+            st.plotly_chart(fig_rsi)
 
-                # Visualisation du RSI
-                
-                fig_rsi = go.Figure()
-                fig_rsi.add_trace(go.Scatter(x=data.index, y=data['RSI'], mode='lines', name='RSI', line=dict(color='white'),showlegend=False))
-                fig_rsi.add_trace(go.Scatter(x=data.index, y=[30]*len(data), mode='lines', name='Seuil 30', line=dict(color='#eab676', dash='dash'),showlegend=False))
-                fig_rsi.add_trace(go.Scatter(x=data.index, y=[70]*len(data), mode='lines', name='Seuil 70', line=dict(color='#eab676', dash='dash'),showlegend=False))
-                fig_rsi.update_layout(title=f'RSI for {symbol}', xaxis_title='Date', yaxis_title='RSI', xaxis=dict(tickformat="%d-%m-%Y"))
-                st.plotly_chart(fig_rsi)
+            # Préparation des traces pour le graphique des prix et le Volume Profile
+            volume_fig = go.Figure()
+            volume_fig.add_trace(go.Bar(
+                x=volume_profile,  # Densité normalisée
+                y=bin_edges[:-1],  # Limites inférieures des bacs
+                orientation='h',
+                marker=dict(color='white', opacity=0.9),
+                name='Volume Profile'
+            ))
+            volume_fig.update_layout(
+                title='Volume Profile',
+                xaxis_title='Volume',
+                yaxis_title='Price',
+                yaxis=dict(tickformat=".2f"),
+                height=600
+            )
 
-                # Préparation des traces pour le graphique des prix et le Volume Profile
-                volume_fig = go.Figure()
-                volume_fig.add_trace(go.Bar(
-                    x=volume_profile,  # Densité normalisée
-                    y=bin_edges[:-1],  # Limites inférieures des bacs
-                    orientation='h',
-                    marker=dict(color='white', opacity=0.9),
-                    name='Volume Profile'
-                ))
-                volume_fig.update_layout(
-                    title='Volume Profile',
-                    xaxis_title='Volume',
-                    yaxis_title='Price',
-                    yaxis=dict(tickformat=".2f"),
-                    height=600
-                )
+            # Affichage du graphique avec Streamlit
+            st.plotly_chart(volume_fig, use_container_width=True)
 
-                # Affichage du graphique avec Streamlit
-                st.plotly_chart(volume_fig, use_container_width=True)
-
-                # Option de téléchargement des résultats
-                st.write("Télécharger les prédictions:")
-                csv = data.to_csv(index=True)
-                st.download_button("Télécharger les données", data=csv, file_name=f'{symbol}_predictions.csv', mime='text/csv')
+            # Option de téléchargement des résultats
+            st.write("Télécharger les prédictions:")
+            csv = data.to_csv(index=True)
+            st.download_button("Télécharger les données", data=csv, file_name=f'{symbol}_predictions.csv', mime='text/csv')
 
