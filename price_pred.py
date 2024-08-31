@@ -60,7 +60,7 @@ if check_password():
     # Ajout d'options pour ajuster les hyperparamètres du modèle LSTM
     st.sidebar.write("Paramètres Avancés")
     lstm_units = st.sidebar.slider("Units for LSTM layers", 10, 100, 50)
-    lstm_epochs = st.sidebar.slider("Epochs for LSTM", 5, 20, 1)
+    lstm_epochs = st.sidebar.slider("Epochs for LSTM", 1, 20, 5)
     batch_size = st.sidebar.slider("Batch Size for LSTM", 1, 32, 1)
 
     # Fonction pour calculer le MACD
