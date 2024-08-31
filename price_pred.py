@@ -11,7 +11,11 @@ from tensorflow.keras.layers import Dense, LSTM
 import time
 import datetime
 from scipy.stats import binned_statistic
-from plyer import notification
+
+
+
+
+
 # Fonction pour vérifier les identifiants
 def check_password():
     def password_entered():
@@ -64,6 +68,19 @@ if check_password():
     lstm_units = st.sidebar.slider("Units for LSTM layers", 10, 100, 50)
     lstm_epochs = st.sidebar.slider("Epochs for LSTM", 1, 20, 5)
     batch_size = st.sidebar.slider("Batch Size for LSTM", 1, 32, 1)
+
+    # Function to send a notification
+    def send_notification():
+        st.components.v1.html("""
+        <script>
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+        new Notification("Execution Terminé", {
+            body: "L'exécution de votre tâche est terminée."
+        });
+        </script>
+        """, height=0)
 
     # Fonction pour calculer le MACD
     def calculate_macd(data, short_window=12, long_window=26, signal_window=9):
@@ -350,11 +367,7 @@ if check_password():
 
                 # Affichage du graphique avec Streamlit
                 st.plotly_chart(volume_fig, use_container_width=True)
-                notification.notify(
-                    title='Notification',
-                    message='L\'exécution de votre tâche est terminée.',
-                    app_name='Streamlit'
-                )
+                send_notification()
                 # Option de téléchargement des résultats
                 st.write("Télécharger les prédictions:")
                 csv = data.to_csv(index=True)
