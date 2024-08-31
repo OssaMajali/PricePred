@@ -12,9 +12,6 @@ import time
 import datetime
 from scipy.stats import binned_statistic
 
-# Configurer Streamlit
-
-
 # Fonction pour vérifier les identifiants
 def check_password():
     def password_entered():
