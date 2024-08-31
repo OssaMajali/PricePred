@@ -73,12 +73,28 @@ if check_password():
     def send_notification():
         st.components.v1.html("""
         <script>
-        if (Notification.permission !== "granted") {
-            Notification.requestPermission();
+        function showNotification() {
+            if (Notification.permission === "granted") {
+                new Notification("Execution Terminé", {
+                    body: "L'exécution de votre tâche est terminée."
+                });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(function (permission) {
+                    if (permission === "granted") {
+                        new Notification("Execution Terminé", {
+                            body: "L'exécution de votre tâche est terminée."
+                        });
+                    } else {
+                        console.error("Notification permission denied.");
+                    }
+                }).catch(function (error) {
+                    console.error("Notification permission request failed:", error);
+                });
+            }
         }
-        new Notification("Execution Terminé", {
-            body: "L'exécution de votre tâche est terminée."
-        });
+
+        // Run the function to show notification
+        showNotification();
         </script>
         """, height=0)
 
