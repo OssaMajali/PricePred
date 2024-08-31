@@ -15,7 +15,7 @@ from scipy.stats import gaussian_kde
 
 # Configurer Streamlit
 
-
+@st.cache_data
 # Fonction pour vérifier les identifiants
 def check_password():
     def password_entered():
@@ -38,7 +38,7 @@ def check_password():
 
 if check_password(): 
     st.set_page_config(layout="wide")
-    st.title("Application de Prédiction des Prix")
+    st.title("Prediction Application ")
 
     # Liste des symboles disponibles
     symbols = ['GC=F', '^DJI', 'NQ=F', 'BTC-USD', 'EURUSD=X', 'JPY=X', '^GSPC ']
@@ -110,17 +110,7 @@ if check_password():
     #        st.metric(label="Volume" ,value=f"{volume_actual:.2f}")
 
    # Fonction pour générer la barre de progression personnalisée
-    def display_progress_bar(progress):
-        st.markdown(
-            f"""
-            <div style="width: 100%; background-color: #f3f3f3; border-radius: 5px; padding: 3px;">
-                <div style="width: {progress}%; background-color: #eab676 ; height: 20px; border-radius: 5px; text-align: center; color: white;">
-                    {progress}%
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+
 
     # Fonction pour afficher les KPI
     def display_kpis(data):
@@ -128,7 +118,7 @@ if check_password():
         price_difference = data['Close'].iloc[-1] - data['Close'].iloc[0]
         high_price = data['High'].max()
         low_price = data['Low'].min()
-        volume_actual = data['Volume'].iloc[-1]
+        data_size = data.shape[0]
 
         # Styles CSS pour centrer et ajouter une bordure réduite
         kpi_style = """
@@ -157,20 +147,23 @@ if check_password():
         col1, col2, col3, col4, col5 = st.columns(5)  # Crée deux colonnes, la deuxième étant plus large
 
         with col1:
-            st.markdown('<div class="kpi"><strong>Prix de Clôture</strong><br>${:.2f}</div>'.format(close_price), unsafe_allow_html=True)
+            st.markdown('<div class="kpi"><strong>Close Price</strong><br>${:.2f}</div>'.format(close_price), unsafe_allow_html=True)
         with col2:
-            st.markdown('<div class="kpi"><strong>Différence de Prix</strong><br>${:.2f}</div>'.format(price_difference), unsafe_allow_html=True)
+            st.markdown('<div class="kpi"><strong>Price Difference</strong><br>${:.2f}</div>'.format(price_difference), unsafe_allow_html=True)
         with col3:        
-            st.markdown('<div class="kpi"><strong>Prix le Plus Élevé</strong><br>${:.2f}</div>'.format(high_price), unsafe_allow_html=True)
+            st.markdown('<div class="kpi"><strong>High Price</strong><br>${:.2f}</div>'.format(high_price), unsafe_allow_html=True)
         with col4:    
-            st.markdown('<div class="kpi"><strong>Prix le Plus Bas</strong><br>${:.2f}</div>'.format(low_price), unsafe_allow_html=True)
+            st.markdown('<div class="kpi"><strong>Down Price</strong><br>${:.2f}</div>'.format(low_price), unsafe_allow_html=True)
         with col5:    
-            st.markdown('<div class="kpi"><strong>Volume</strong><br>{:.2f}</div>'.format(volume_actual), unsafe_allow_html=True)
+            st.markdown('<div class="kpi"><strong>Rows Number</strong><br>{:.2f}</div>'.format(data_size), unsafe_allow_html=True)
 
     # Bouton pour lancer la prédiction
     if st.sidebar.button("Predict"):
         # Affichage d'une animation de chargement
-        with st.spinner("Prédiction en cours..."):
+        #with st.spinner("Prédiction en cours..."):
+    # Affichage d'une barre de progression
+            progress_bar = st.sidebar.progress(0)
+            status_text = st.sidebar.empty()      
             # Télécharger les données
             data = yf.download(symbol, start=start_date, end=end_date, interval=interval)
             data.index = data.index.tz_localize(None)
@@ -204,15 +197,15 @@ if check_password():
                 st.write("Aperçu des dernières données:")
                 #st.write(data.tail(5))
                 st.dataframe(data.tail(5), use_container_width=True)
-
+                progress_bar.progress(10)
                 # Calculer les rendements
                 data['Return'] = data['Close'].pct_change()
                 data = data.dropna()
-
+                progress_bar.progress(20)
                 # Ajuster un modèle SARIMA aux rendements
                 sarima_model = SARIMAX(data['Return'], order=(1, 0, 1), seasonal_order=(1, 1, 1, 5))
                 sarima_fit = sarima_model.fit(disp=False)
-
+                progress_bar.progress(40)
                 # Prédire les rendements pour les 30 prochaines minutes
                 forecast_steps_30 = 30
                 forecast_30 = sarima_fit.get_forecast(steps=forecast_steps_30)
@@ -226,7 +219,7 @@ if check_password():
                     predicted_price_30 = last_price_30 * (1 + return_30)
                     predicted_prices_30.append(predicted_price_30)
                     last_price_30 = predicted_price_30
-
+                progress_bar.progress(60)
                 # Simuler les prix en utilisant la méthode de Monte Carlo
                 n_simulations = 10000
                 simulated_trajectories = []
@@ -247,7 +240,7 @@ if check_password():
                 # Trouver la trajectoire simulée avec l'erreur quadratique moyenne la plus faible
                 min_mse_index = np.argmin(mse_values)
                 closest_trajectory = simulated_trajectories[min_mse_index]
-
+                progress_bar.progress(80)
                 # Préparation des données pour LSTM
                 scaler = MinMaxScaler(feature_range=(0, 1))
                 scaled_data = scaler.fit_transform(data[['Close', 'RSI', 'ZScore', 'MACD_Line', 'Signal_Line']].dropna())
@@ -284,15 +277,8 @@ if check_password():
                 model.add(Dense(units=1))
 
                 model.compile(optimizer='adam', loss='mean_squared_error')
-                #model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
-                progress_bar = st.progress(0)
-                    # Entraîner le modèle
-                for epoch in range(lstm_epochs):
-                    model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs, verbose=0)
-                     # Calculer et afficher la progression
-                    progress = int((epoch + 1) / lstm_epochs * 100)
-                    display_progress_bar(progress)
-                    progress_bar.progress(progress)
+                model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
+                progress_bar.progress(90)
                 last_60_days = scaled_data[-60:]
                 lstm_input = last_60_days.reshape(1, last_60_days.shape[0], last_60_days.shape[1])
                 lstm_predicted_prices = []
@@ -308,7 +294,8 @@ if check_password():
                 lstm_predicted_prices_full[:, 0] = lstm_predicted_prices[:, 0]
 
                 lstm_predicted_prices = scaler.inverse_transform(lstm_predicted_prices_full)[:, 0]
-
+                progress_bar.progress(100)
+                status_text.text("Prédiction terminée")
                 # Calculer le Volume Profile
                 #price_bins, volume_profile = calculate_volume_profile(data)
 
