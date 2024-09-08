@@ -8,12 +8,10 @@ from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM
+from tensorflow.keras.layers import Dropout
 import time
 import datetime
 from scipy.stats import binned_statistic
-
-
-
 
 
 # Fonction pour vérifier les identifiants
@@ -61,43 +59,12 @@ if check_password():
 
     # Paramètres de l'application
 
-    interval = st.sidebar.selectbox("Intervalle", ['1m','5m', '15m', '30m', '1h','4h','1d'])
+    interval = st.sidebar.selectbox("Intervalle", ['1m','5m', '15m', '30m', '1h','1d'])
 
     # Ajout d'options pour ajuster les hyperparamètres du modèle LSTM
     st.sidebar.write("Paramètres Avancés")
     lstm_units = st.sidebar.slider("Units for LSTM layers", 10, 100, 50)
-    lstm_epochs = st.sidebar.slider("Epochs for LSTM", 1, 20, 5)
-    batch_size = st.sidebar.slider("Batch Size for LSTM", 1, 32, 1)
-
-    # Function to send a notification
-    def send_notification():
-        st.components.v1.html("""
-        <script>
-        function showNotification() {
-            if (Notification.permission === "granted") {
-                new Notification("Execution Terminé", {
-                    body: "L'exécution de votre tâche est terminée."
-                });
-            } else if (Notification.permission !== "denied") {
-                Notification.requestPermission().then(function (permission) {
-                    if (permission === "granted") {
-                        new Notification("Execution Terminé", {
-                            body: "L'exécution de votre tâche est terminée."
-                        });
-                    } else {
-                        console.error("Notification permission denied.");
-                    }
-                }).catch(function (error) {
-                    console.error("Notification permission request failed:", error);
-                });
-            }
-        }
-
-        // Run the function to show notification
-        showNotification();
-        </script>
-        """, height=0)
-
+ 
     # Fonction pour calculer le MACD
     def calculate_macd(data, short_window=12, long_window=26, signal_window=9):
         short_ema = data['Close'].ewm(span=short_window, adjust=False).mean()
@@ -107,45 +74,51 @@ if check_password():
         macd_histogram = macd_line - signal_line
         return macd_line, signal_line, macd_histogram
 
-    # Fonction pour calculer le Volume Profile
-    #def calculate_volume_profile(data, num_bins=100):
-    #    price_bins = np.linspace(data['Low'].min(), data['High'].max(), num_bins)
-    #    volume_profile = np.zeros(num_bins - 1)
-    #    for i in range(num_bins - 1):
-    #        bin_mask = (data['Close'] >= price_bins[i]) & (data['Close'] < price_bins[i+1])
-    #        volume_profile[i] = data.loc[bin_mask, 'Volume'].sum()
-    #    return price_bins, volume_profile
-
-    # Calcul du Volume Profile
     def calculate_volume_profile(data, num_bins=150):
         price_data = data['Close']
         volume_data = data['Volume']
         bin_edges = np.linspace(price_data.min(), price_data.max(), num_bins + 1)
         volume_profile, bin_edges, _ = binned_statistic(price_data, volume_data, statistic='sum', bins=bin_edges)
         return volume_profile, bin_edges
+    # Ajouter EMA 19, 38 et 200
+    def calculate_ema(data, span):
+        return data['Close'].ewm(span=span, adjust=False).mean()
+    
+    # Ajouter les Bandes de Bollinger
+    def calculate_bollinger_bands(data, window=20, num_std=2):
+        rolling_mean = data['Close'].rolling(window).mean()
+        rolling_std = data['Close'].rolling(window).std()
+        upper_band = rolling_mean + (rolling_std * num_std)
+        lower_band = rolling_mean - (rolling_std * num_std)
+        return upper_band, lower_band
 
-    # Fonction pour afficher les KPI
-    #def display_kpis(data):
-    #    close_price = data['Close'].iloc[-1]
-    #    price_difference = data['Close'].iloc[-1] - data['Close'].iloc[0]
-    #    high_price = data['High'].max()
-    #    low_price = data['Low'].min()
-    #    volume_actual = data['Volume'].iloc[-1]
+    # ATR (Average True Range)
+    def calculate_atr(data, window=14):
+        high_low = data['High'] - data['Low']
+        high_close = np.abs(data['High'] - data['Close'].shift())
+        low_close = np.abs(data['Low'] - data['Close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        atr = true_range.rolling(window=window).mean()
+        return atr
 
-    #    col1, col2, col3, col4, col5 = st.columns(5)
-    #    with col1:
-    #        st.metric(label="Prix de Clôture", value=f"${close_price:.2f}")
-    #    with col2:
-    #        st.metric(label="Différence de Prix", value=f"${price_difference:.2f}")
-    #    with col3:
-    #        st.metric(label="Prix le Plus Élevé", value=f"${high_price:.2f}")
-    #    with col4:
-    #        st.metric(label="Prix le Plus Bas", value=f"${low_price:.2f}")
-    #    with col5:
-    #        st.metric(label="Volume" ,value=f"{volume_actual:.2f}")
+    # Le volume est déjà dans les données téléchargées sous 'Volume'
 
-    # Fonction pour afficher les KPI
-   
+    # Calcul des niveaux de support et de résistance
+    def calculate_support_resistance(data, window=14):
+        rolling_high = data['High'].rolling(window=window).max()
+        rolling_low = data['Low'].rolling(window=window).min()
+        return rolling_high, rolling_low
+
+    # VWAP (Volume Weighted Average Price)
+    def calculate_vwap(data):
+        vwap = (data['Close'] * data['Volume']).cumsum() / data['Volume'].cumsum()
+        return vwap
+
+    # Momentum
+    def calculate_momentum(data, window=14):
+        momentum = data['Close'].diff(window)
+        return momentum
 
     # Fonction pour afficher les KPI
     def display_kpis(data):
@@ -221,6 +194,14 @@ if check_password():
                 data['ZScore'] = calculate_z_score(data)
                 data['RSI'] = calculate_RSI(data)
                 data['MACD_Line'], data['Signal_Line'], data['MACD_Histogram'] = calculate_macd(data)
+                data['Upper_Band'], data['Lower_Band'] = calculate_bollinger_bands(data)
+                data['Resistance'], data['Support'] = calculate_support_resistance(data)
+                data['EMA_19'] = calculate_ema(data, 19)
+                data['EMA_38'] = calculate_ema(data, 38)
+                data['EMA_200'] = calculate_ema(data, 200)
+                data['ATR'] = calculate_atr(data)
+                data['VWAP'] = calculate_vwap(data)
+                data['Momentum'] = calculate_momentum(data)
 
                 # Afficher les KPI
                 display_kpis(data)
@@ -275,8 +256,10 @@ if check_password():
 
                 # Préparation des données pour LSTM
                 scaler = MinMaxScaler(feature_range=(0, 1))
-                scaled_data = scaler.fit_transform(data[['Close', 'RSI', 'ZScore', 'MACD_Line', 'Signal_Line']].dropna())
-
+                # Mettez à jour les features pour LSTM avec EMA, Bollinger Bands, Volume, Support et Résistance
+                scaled_data = scaler.fit_transform(data[['Close', 'RSI', 'ZScore', 'MACD_Line', 'Signal_Line',
+                                                        'EMA_19', 'EMA_38', 'EMA_200', 'Upper_Band', 'Lower_Band',
+                                                        'Volume', 'Support', 'Resistance','ATR', 'VWAP', 'Momentum' ]].dropna())
                 # Créer les séquences avec features (Close, RSI, ZScore, MACD_Line, Signal_Line)
                 def create_sequences_with_features(data, seq_length):
                     x = []
@@ -301,15 +284,17 @@ if check_password():
 
                 x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], x_train.shape[2]))
 
-                # Modèle LSTM
+               # Modèle LSTM
                 model = Sequential()
-                model.add(LSTM(units=lstm_units, return_sequences=True, input_shape=(x_train.shape[1], x_train.shape[2])))
-                model.add(LSTM(units=lstm_units, return_sequences=False))
-                model.add(Dense(units=25))
+                model.add(LSTM(units=100, return_sequences=True, input_shape=(x_train.shape[1], x_train.shape[2])))
+                model.add(Dropout(0.2))
+                model.add(LSTM(units=50, return_sequences=False))
+                model.add(Dropout(0.2))
+                model.add(Dense(units=25, activation='relu'))
                 model.add(Dense(units=1))
 
                 model.compile(optimizer='adam', loss='mean_squared_error')
-                model.fit(x_train, y_train, batch_size=batch_size, epochs=lstm_epochs)
+                model.fit(x_train, y_train, batch_size=8, epochs=5)
 
                 last_60_days = scaled_data[-60:]
                 lstm_input = last_60_days.reshape(1, last_60_days.shape[0], last_60_days.shape[1])
@@ -333,11 +318,11 @@ if check_password():
 
                 # Calculer le Volume Profile
                 volume_profile, bin_edges = calculate_volume_profile(data)
-
+                last_20_data = data.tail(100)
 
                 # Visualisation interactive avec Plotly
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Prices',line=dict(color='white') , showlegend=False))
+                fig.add_trace(go.Scatter(x=last_20_data.index, y=last_20_data['Close'], mode='lines', name='Prices',line=dict(color='white') , showlegend=False))
                 fig.add_trace(go.Scatter(x=forecast_Index_30, y=predicted_prices_30, mode='lines',  name='SARIMA',line=dict(color='red'), showlegend=False ))
                 fig.add_trace(go.Scatter(x=forecast_Index_30, y=closest_trajectory, mode='lines', name='Monte Carlo',line=dict(color='green'),showlegend=False ))
                 fig.add_trace(go.Scatter(x=forecast_Index_30, y=lstm_predicted_prices, mode='lines', name='LSTM',line=dict(color='#eab676'), showlegend=False ))
@@ -348,7 +333,7 @@ if check_password():
                 # Visualisation du MACD
                 
                 fig_macd = go.Figure()
-                fig_macd.add_trace(go.Scatter(x=data.index, y=data['MACD_Line'], mode='lines', name='MACD Line', line=dict(color='white'),showlegend=False))
+                fig_macd.add_trace(go.Scatter(x=last_20_data.index, y=last_20_data['MACD_Line'], mode='lines', name='MACD Line', line=dict(color='white'),showlegend=False))
                 fig_macd.add_trace(go.Scatter(x=data.index, y=data['Signal_Line'], mode='lines', name='Signal Line', line=dict(color='#eab676'), showlegend=False))
                 fig_macd.add_trace(go.Bar(x=data.index, y=data['MACD_Histogram'], name='MACD Histogram', marker_color='grey', opacity=0.7,showlegend=False))
                 fig_macd.update_layout(title=f'MACD for {symbol}', xaxis_title='Date', yaxis_title='MACD', xaxis=dict(tickformat="%d-%m-%Y"))
@@ -358,7 +343,7 @@ if check_password():
                 # Visualisation du RSI
                 
                 fig_rsi = go.Figure()
-                fig_rsi.add_trace(go.Scatter(x=data.index, y=data['RSI'], mode='lines', name='RSI', line=dict(color='white'),showlegend=False))
+                fig_rsi.add_trace(go.Scatter(x=last_20_data.index, y=last_20_data['RSI'], mode='lines', name='RSI', line=dict(color='white'),showlegend=False))
                 fig_rsi.add_trace(go.Scatter(x=data.index, y=[30]*len(data), mode='lines', name='Seuil 30', line=dict(color='#eab676', dash='dash'),showlegend=False))
                 fig_rsi.add_trace(go.Scatter(x=data.index, y=[70]*len(data), mode='lines', name='Seuil 70', line=dict(color='#eab676', dash='dash'),showlegend=False))
                 fig_rsi.update_layout(title=f'RSI for {symbol}', xaxis_title='Date', yaxis_title='RSI', xaxis=dict(tickformat="%d-%m-%Y"))
@@ -383,7 +368,7 @@ if check_password():
 
                 # Affichage du graphique avec Streamlit
                 st.plotly_chart(volume_fig, use_container_width=True)
-                send_notification()
+   
                 # Option de téléchargement des résultats
                 st.write("Télécharger les prédictions:")
                 csv = data.to_csv(index=True)
