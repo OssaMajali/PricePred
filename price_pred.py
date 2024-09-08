@@ -220,7 +220,7 @@ if check_password():
                 sarima_fit = sarima_model.fit(disp=False)
 
                 # Prédire les rendements pour les 30 prochaines minutes
-                forecast_steps_30 = 30
+                forecast_steps_30 = 10
                 forecast_30 = sarima_fit.get_forecast(steps=forecast_steps_30)
                 forecast_Index_30 = [data.index[-1] + pd.Timedelta(minutes=i) for i in range(1, forecast_steps_30 + 1)]
                 forecast_values_30 = forecast_30.predicted_mean
